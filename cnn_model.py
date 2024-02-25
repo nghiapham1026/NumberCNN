@@ -1,41 +1,43 @@
-# Import necessary libraries
 import numpy as np
-from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from keras.optimizers import Adam
+from keras.utils import to_categorical
+from keras.datasets import mnist
+from kerastuner.tuners import RandomSearch
+from tuning import CNNHyperModel
 from preprocess import X_train, X_test, y_train, y_test
 
 # Convert DataFrame to NumPy array and reshape the data to fit the model
-X_train_reshaped = X_train.values.reshape(-1, 28, 28, 1)  # Use .values to convert DataFrame to NumPy array
-X_test_reshaped = X_test.values.reshape(-1, 28, 28, 1)
+X_train = X_train.values.reshape(-1, 28, 28, 1)  # Use .values to convert DataFrame to NumPy array
+X_test = X_test.values.reshape(-1, 28, 28, 1)
 
-# Define the CNN architecture
-model = Sequential([
-    Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=(28, 28, 1)),
-    MaxPooling2D(pool_size=(2, 2)),
-    Conv2D(64, (3, 3), activation='relu'),
-    MaxPooling2D(pool_size=(2, 2)),
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dropout(0.5),
-    Dense(10, activation='softmax')
-])
+# Define the search space and start the tuning
+hypermodel = CNNHyperModel(input_shape=(28, 28, 1), num_classes=10)
 
-# Compile the model
-model.compile(optimizer=Adam(),
-              loss='categorical_crossentropy',
-              metrics=['accuracy'])
+tuner = RandomSearch(
+    hypermodel,
+    objective='val_accuracy',
+    max_trials=3,
+    executions_per_trial=2,
+    directory='tuning',
+    project_name='mnist_cnn'
+)
 
-# Print a summary of the model
-model.summary()
+tuner.search(X_train, y_train,
+             epochs=10,
+             validation_split=0.2)
 
-# Train the model
-history = model.fit(X_train_reshaped, y_train, epochs=10, validation_split=0.2, batch_size=32)
+# Get the optimal hyperparameters
+best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
-# Evaluate the model on the test set
-test_loss, test_acc = model.evaluate(X_test_reshaped, y_test)
-print(f"Test Accuracy: {test_acc*100:.2f}%")
+print(f"""
+The hyperparameter search is complete. The optimal number of units in the first densely-connected
+layer is {best_hps.get('dense_units')} and the optimal learning rate for the optimizer
+is {best_hps.get('learning_rate')}.
+""")
 
-# Optionally, save the model
-model.save('./models/mnist_cnn_model.h5')
-print("Model saved successfully.")
+# Build the model with the optimal hyperparameters and train it on the data
+model = tuner.hypermodel.build(best_hps)
+history = model.fit(X_train, y_train, epochs=10, validation_split=0.2)
+
+# Evaluate the model
+test_loss, test_acc = model.evaluate(X_test, y_test)
+print(f'Test Accuracy: {test_acc*100:.2f}%')
