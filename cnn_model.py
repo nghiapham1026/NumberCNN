@@ -30,9 +30,12 @@ best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
 print(f"""
 The hyperparameter search is complete. The optimal number of units in the first densely-connected
-layer is {best_hps.get('dense_units')} and the optimal learning rate for the optimizer
-is {best_hps.get('learning_rate')}.
+layer is {best_hps.get('dense_units')}.
 """)
+
+# Since learning_rate might not be defined, use a conditional check or a default value
+learning_rate = best_hps.get('learning_rate') if 'learning_rate' in best_hps.values else 'default value'
+print(f"The optimal learning rate for the optimizer is {learning_rate}.")
 
 # Build the model with the optimal hyperparameters and train it on the data
 model = tuner.hypermodel.build(best_hps)
