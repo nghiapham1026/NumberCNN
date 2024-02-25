@@ -44,3 +44,7 @@ history = model.fit(X_train, y_train, epochs=10, validation_split=0.2)
 # Evaluate the model
 test_loss, test_acc = model.evaluate(X_test, y_test)
 print(f'Test Accuracy: {test_acc*100:.2f}%')
+
+# Optionally, save the model
+model.save('./models/mnist_cnn_model.h5')
+print("Model saved successfully.")
