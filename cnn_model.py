@@ -4,10 +4,15 @@ from keras.datasets import mnist
 from kerastuner.tuners import RandomSearch
 from tuning import CNNHyperModel
 from preprocess import X_train, X_test, y_train, y_test
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 # Convert DataFrame to NumPy array and reshape the data to fit the model
-X_train = X_train.values.reshape(-1, 28, 28, 1)  # Use .values to convert DataFrame to NumPy array
+X_train = X_train.values.reshape(-1, 28, 28, 1)
 X_test = X_test.values.reshape(-1, 28, 28, 1)
+
+# Manually split the training set into training and validation sets
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
 # Define the search space and start the tuning
 hypermodel = CNNHyperModel(input_shape=(28, 28, 1), num_classes=10)
@@ -23,23 +28,29 @@ tuner = RandomSearch(
 
 tuner.search(X_train, y_train,
              epochs=10,
-             validation_split=0.2)
+             validation_data=(X_val, y_val))
 
 # Get the optimal hyperparameters
 best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
-print(f"""
-The hyperparameter search is complete. The optimal number of units in the first densely-connected
-layer is {best_hps.get('dense_units')}.
-""")
+# Define data augmentation generator for the training data
+data_augmentation = ImageDataGenerator(
+    rotation_range=10,
+    zoom_range=0.1,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+)
 
-# Since learning_rate might not be defined, use a conditional check or a default value
-learning_rate = best_hps.get('learning_rate') if 'learning_rate' in best_hps.values else 'default value'
-print(f"The optimal learning rate for the optimizer is {learning_rate}.")
+# Create a generator for the training data
+train_generator = data_augmentation.flow(X_train, y_train, batch_size=32)
 
-# Build the model with the optimal hyperparameters and train it on the data
+# Use the optimal hyperparameters to build the model
 model = tuner.hypermodel.build(best_hps)
-history = model.fit(X_train, y_train, epochs=10, validation_split=0.2)
+
+# Train the model
+history = model.fit(train_generator,
+                    epochs=10,
+                    validation_data=(X_val, y_val))
 
 # Evaluate the model
 test_loss, test_acc = model.evaluate(X_test, y_test)
